@@ -1,15 +1,27 @@
 Package: pkgserver
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
-Authors@R: 
-    person(given = "First",
-           family = "Last",
-           role = c("aut", "cre"),
-           email = "first.last@example.com",
-           comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to
-    pick a license
+Title: Serve Binary R / Bioconductor Packages for Fast Installation 
+Version: 0.0.1
+Authors@R: c(
+    person(
+        given = "Martin",
+        family = "Morgan",
+        role = c("aut", "cre"),
+        email = "mtmorgan.bioc@gmail.com",
+        comment = c(ORCID = "0000-0002-5874-8148")
+    ))
+Description: Use `install()` for fast binary package
+    installation. This 'front-end' must connect with an archive server
+    capable of building and providing binary package versions. When
+    the archive server is first asked for a versioned package, it must
+    install and build the binary of the package so the process is no
+    faster than a standard installation. On second and subsequent
+    requests, the archive server provides a binary package for fast
+    installation. Currently, the only archive server is in fact the
+    package itself, so it is only capable of serving binary package
+    versions to itself.
+License: Artistic-2.0
+Depends: dplyr
+Imports: BiocManager, dplyr, tibble, digest, rappdirs, tools, utils
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
