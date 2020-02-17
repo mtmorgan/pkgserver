@@ -210,9 +210,8 @@ archive_install <-
     owd <- setwd(binary)
     on.exit(setwd(owd))
 
-    to_archive <- filter(tbl, !.$is_archived)
+    to_archive <- tbl %>% filter(!.$is_archived)
     package <- to_archive %>% pull("Package")
-    message(length(package), " package(s) need archive installation")
 
     install.packages(
         package, library, repos, destdir = src, INSTALL_opts = "--build",
@@ -221,5 +220,5 @@ archive_install <-
     to_archive <- .archive_move_binary_to_archive(to_archive, binary, archive)
 
     ## return
-    mutate(tbl, archive = file.path(archive, digest))
+    tbl %>% mutate(archive = file.path(archive, digest))
 }

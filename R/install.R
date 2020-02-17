@@ -50,11 +50,10 @@
 .package_need <-
     function(available, depends)
 {
-    inner_join(
-        filter(.$available, .$update_available),
-        select("depends", "Needs"),
-        by = c(Package = "Needs")
-    ) %>% distinct()
+    available %>%
+        filter(.$update_available) %>%
+        inner_join(select(depends, "Needs"), by = c(Package = "Needs")) %>%
+        distinct()
 }
 
 .install_packages <-
@@ -65,7 +64,8 @@
     packages <- archive$archive
     install.packages(packages, lib_paths[1], repos = NULL)
 
-    mutate(need, install_occurred = .$Package %in% archive$Package)
+    need %>%
+        mutate(install_occurred = .$Package %in% archive$Package)
 }
 
 #' @importFrom BiocManager repositories
@@ -78,13 +78,15 @@ install_packages_for_builder <-
 #' @importFrom dplyr count arrange desc
 install_packages_for_user <-
     function(packages, lib_paths = .libPaths(), repos = repositories(),
-             dry.run = FALSE)
+             dry.run = FALSE, verbose = TRUE)
 {
     stopifnot(
         is.character(packages), !anyNA(packages),
         is.character(lib_paths), length(lib_paths) > 0, !anyNA(lib_paths),
         all(dir.exists(lib_paths)),
-        is.character(repos), !anyNA(repos)
+        is.character(repos), !anyNA(repos),
+        is.logical(dry.run), length(dry.run) == 1L, !anyNA(dry.run),
+        is.logical(verbose), length(verbose) == 1L, !anyNA(verbose)
     )
 
     ## find packages for installation
@@ -93,17 +95,21 @@ install_packages_for_user <-
         "not all 'packages' available in 'repos'" =
             all(packages %in% available$Package)
     )
-    message(
-        nrow(available), " packages available from ",
-        length(repos), " repositories"
-    )
+    verbose &&
+        .message(
+            nrow(available), " packages available from ",
+            length(repos), " repositories"
+        )
 
     depend <- .package_dependencies(packages, repos)
-    message(length(packages), " packages have ", nrow(depend), " dependencies")
+    verbose &&
+        .message(
+            length(packages), " packages have ", nrow(depend), " dependencies"
+        )
 
     need <- .package_need(available, depend)
 
-    in_use <- filter(.$need, .$in_use, .$installed)
+    in_use <- need %>% filter(.$in_use, .$installed)
     if (nrow(in_use))
         warning(
             "out-of-date dependencies are in use and may fail to update:\n",
@@ -112,10 +118,11 @@ install_packages_for_user <-
         )
 
     archive_need <- archive_need(need)
-    message(
-        nrow(archive_need), " dependencies need archive (full) installation\n",
-        nrow(need), " dependencies need local (fast) installation"
-    )
+    verbose &&
+        .message(
+            nrow(archive_need), " dependencies need archive installation\n",
+            nrow(need), " dependencies need local (fast) installation"
+        )
 
     ## install
     if (dry.run)
@@ -141,8 +148,11 @@ install_packages_for_user <-
 #'     Bioconductor repositories relevant to the current R
 #'     installation.
 #'
-#' @param dry.run logical(1) perform the installation (default,
+#' @param dry.run logical(1) perform the installation (default
 #'     `TRUE`) or only the calculation of packages requiring update.
+#'
+#' @param verbose logical(1) report progress toward installing
+#'     packages (default TRUE).
 #'
 #' @return a tibble of package, version, dependency count (including
 #'     self), and logical value indicating whether installation
