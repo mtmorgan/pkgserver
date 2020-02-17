@@ -1,75 +1,71 @@
 #' @importFrom utils available.packages installed.packages
 #' @importFrom tibble as_tibble tibble
 #' @importFrom dplyr filter select mutate left_join "%>%"
-.packages <-
+.package_available <-
     function(lib_paths, repos)
 {
     fields <- c("Package", "Version")
-    available_packages <- available.packages(repos = repos)[, fields]
-    installed_packages <- installed.packages(lib_paths)[, fields]
+    available_packages <-
+        available.packages(repos = repos)[, fields, drop = FALSE] %>%
+        as_tibble()
 
-    tbl <-
-        as_tibble(available_packages) %>%
+    installed_packages <-
+        installed.packages(lib_paths)[, fields, drop = FALSE] %>%
+        as_tibble()
+
+    idx <- match(available_packages$Package, installed_packages$Package)
+    update_available <-
+        available_packages$Version != installed_packages$Version[idx]
+
+    available_packages %>%
         mutate(
-            installed = Package %in% installed_packages[, "Package"],
-            in_use = Package %in% loadedNamespaces()
+            installed = .$Package %in% installed_packages$Package,
+            in_use = .$Package %in% loadedNamespaces(),
+            update_available = ifelse(
+                is.na(update_available), TRUE, update_available
+            )
         )
-
-    out_of_date <-
-        filter(tbl, installed) %>%
-        mutate(
-            out_of_date = Version != installed_packages[Package, "Version"]
-        ) %>%
-        select(Package, out_of_date)
-
-    left_join(tbl, out_of_date, by = "Package") %>%
-        mutate(out_of_date = ifelse(is.na(out_of_date), FALSE, out_of_date))
 }
 
 #' @importFrom tools package_dependencies
-#' @importFrom dplyr bind_rows
-.dependencies <-
-    function(packages, repos)
+#' @importFrom dplyr distinct
+.package_dependencies <-
+    function(packages, repos, complete = FALSE)
 {
     db <- available.packages(repos = repos)
-    deps0 <- package_dependencies(packages, db, recursive = TRUE)
-    all_pkgs <- unique(c(packages, unlist(deps0, use.names = FALSE)))
-    db <- db[rownames(db) %in% all_pkgs, , drop = FALSE]
-    deps <- package_dependencies(all_pkgs, db, recursive = TRUE)
-    tbl <- tibble(
-        Package = rep(names(deps), lengths(deps)),
-        Needs = unlist(deps, use.names = FALSE)
-    )
-    ## all packages depend on themselves
-    bind_rows(
-        tbl,
-        tibble(Package = all_pkgs, Needs = all_pkgs)
-    )
+    deps <- package_dependencies(packages, db, recursive = TRUE)
+    if (complete) {
+        all_pkgs <- unique(c(packages, unlist(deps, use.names = FALSE)))
+        db <- db[rownames(db) %in% all_pkgs, , drop = FALSE]
+        deps <- package_dependencies(all_pkgs, db, recursive = TRUE)
+    }
+    tibble(
+        ## all packages depend on themselves
+        Package = c(packages, rep(names(deps), lengths(deps))),
+        Needs = c(packages, unlist(deps, use.names = FALSE))
+    ) %>% distinct()
 }
 
 #' @importFrom dplyr inner_join
-.needed_packages <-
-    function(packages, available, dependencies)
+.package_need <-
+    function(available, depends)
 {
-    updateable <-
-        filter(
-            available,
-            !in_use & (!installed | out_of_date | Package %in% packages)
-        ) %>%
-        select(Package)
-
-    inner_join(dependencies, updateable, by = c("Needs" = "Package")) %>%
-        left_join(available, by = "Package") %>%
-        select(Package, Version, Needs)
+    inner_join(
+        filter(.$available, .$update_available),
+        select("depends", "Needs"),
+        by = c(Package = "Needs")
+    ) %>% distinct()
 }
 
 .install_packages <-
-    function(needed, lib_paths, repos)
+    function(need, lib_paths, repos)
 {
-    archive <- archive_install(needed, repos = repos)
+    tbl <- need %>% select("Package", "Version")
+    archive <- archive_install(tbl, repos = repos)
     packages <- archive$archive
     install.packages(packages, lib_paths[1], repos = NULL)
-    tibble(Package = archive$Package, install_occurred = TRUE)
+
+    mutate(need, install_occurred = .$Package %in% archive$Package)
 }
 
 #' @importFrom BiocManager repositories
@@ -81,7 +77,8 @@ install_packages_for_builder <-
 
 #' @importFrom dplyr count arrange desc
 install_packages_for_user <-
-    function(packages, lib_paths = .libPaths(), repos = repositories())
+    function(packages, lib_paths = .libPaths(), repos = repositories(),
+             dry.run = FALSE)
 {
     stopifnot(
         is.character(packages), !anyNA(packages),
@@ -90,40 +87,42 @@ install_packages_for_user <-
         is.character(repos), !anyNA(repos)
     )
 
-    available <- .packages(lib_paths, repos)
+    ## find packages for installation
+    available <- .package_available(lib_paths, repos)
     stopifnot(
         "not all 'packages' available in 'repos'" =
-            all(packages %in% available[["Package"]])
+            all(packages %in% available$Package)
+    )
+    message(
+        nrow(available), " packages available from ",
+        length(repos), " repositories"
     )
 
-    dependencies <- .dependencies(packages, repos)
+    depend <- .package_dependencies(packages, repos)
+    message(length(packages), " packages have ", nrow(depend), " dependencies")
 
-    unavailable <- inner_join(
-        filter(available, in_use, out_of_date), dependencies, by = "Package"
-    )
-    if (nrow(unavailable))
-        stop(
-            "out-of-date dependencies are in use and cannot be updated: ",
-            paste0(unique(unavailable$Package), collapse = " ")
+    need <- .package_need(available, depend)
+
+    in_use <- filter(.$need, .$in_use, .$installed)
+    if (nrow(in_use))
+        warning(
+            "out-of-date dependencies are in use and may fail to update:\n",
+            "  ", paste0(unique(in_use$Package), collapse = " "),
+            call. = FALSE, immediate. = TRUE
         )
 
-    needed <- .needed_packages(packages, available, dependencies)
-
-    installed <- .install_packages(needed, lib_paths, repos)
-
-    ## return value
-    dependency_count <- count(dependencies, Package, name = "dependencies")
-    dependency_count <- inner_join(
-        dependency_count,
-        select(available, Package, Version),
-        by = "Package"
+    archive_need <- archive_need(need)
+    message(
+        nrow(archive_need), " dependencies need archive (full) installation\n",
+        nrow(need), " dependencies need local (fast) installation"
     )
-    dependency_count %>%
-        mutate(
-            install_occurred = Package %in% installed$Package
-        ) %>%
-        select(Package, Version, dependencies, install_occurred) %>%
-        arrange(desc(dependencies))
+
+    ## install
+    if (dry.run)
+        return(need)
+
+    .install_packages(need, lib_paths, repos)
+
 }
 
 #' Install packages and their dependencies from CRAN-style repositories.
@@ -141,6 +140,9 @@ install_packages_for_user <-
 #'     'CRAN-style' repositories. The default includes CRAN and
 #'     Bioconductor repositories relevant to the current R
 #'     installation.
+#'
+#' @param dry.run logical(1) perform the installation (default,
+#'     `TRUE`) or only the calculation of packages requiring update.
 #'
 #' @return a tibble of package, version, dependency count (including
 #'     self), and logical value indicating whether installation

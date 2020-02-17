@@ -4,7 +4,12 @@
 \alias{install}
 \title{Install packages and their dependencies from CRAN-style repositories.}
 \usage{
-install(packages, lib_paths = .libPaths(), repos = repositories())
+install(
+  packages,
+  lib_paths = .libPaths(),
+  repos = repositories(),
+  dry.run = FALSE
+)
 }
 \arguments{
 \item{packages}{character() vector of packages to install. Packages
@@ -20,6 +25,9 @@ least 1.}
 'CRAN-style' repositories. The default includes CRAN and
 Bioconductor repositories relevant to the current R
 installation.}
+
+\item{dry.run}{logical(1) perform the installation (default,
+\code{TRUE}) or only the calculation of packages requiring update.}
 }
 \value{
 a tibble of package, version, dependency count (including

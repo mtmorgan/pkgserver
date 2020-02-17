@@ -1,6 +1,6 @@
 Package: pkgserver
 Title: Serve Binary R / Bioconductor Packages for Fast Installation 
-Version: 0.0.1
+Version: 0.0.2
 Authors@R: c(
     person(
         given = "Martin",
@@ -21,8 +21,10 @@ Description: Use `install()` for fast binary package
     versions to itself.
 License: Artistic-2.0
 Depends: dplyr
-Imports: BiocManager, dplyr, tibble, digest, rappdirs, tools, utils
+Imports: BiocManager, tibble, digest, rappdirs, tools, utils
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.0.2
+Suggests: 
+    testthat
