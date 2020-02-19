@@ -1,6 +1,6 @@
 Package: pkgserver
 Title: Serve Binary R / Bioconductor Packages for Fast Installation 
-Version: 0.0.3
+Version: 0.0.4
 Authors@R: c(
     person(
         given = "Martin",
