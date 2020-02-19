@@ -21,9 +21,7 @@
         mutate(
             installed = .$Package %in% installed_packages$Package,
             in_use = .$Package %in% loadedNamespaces(),
-            update_available = ifelse(
-                is.na(update_available), TRUE, update_available
-            )
+            needs_update = ifelse(is.na(update_available), TRUE, update_available)
         )
 }
 
@@ -51,7 +49,7 @@
     function(available, depends)
 {
     available %>%
-        filter(.$update_available) %>%
+        filter(.$needs_update) %>%
         inner_join(select(depends, "Needs"), by = c(Package = "Needs")) %>%
         distinct()
 }
@@ -77,9 +75,10 @@ install_packages_for_builder <-
 
 #' @importFrom dplyr count arrange desc
 install_packages_for_user <-
-    function(packages, lib_paths = .libPaths(), repos = repositories(),
-             dry.run = FALSE, verbose = TRUE)
+    function(packages = character(), lib_paths = .libPaths(),
+             repos = repositories(), dry.run = FALSE, verbose = TRUE)
 {
+
     stopifnot(
         is.character(packages), !anyNA(packages),
         is.character(lib_paths), length(lib_paths) > 0, !anyNA(lib_paths),
@@ -88,6 +87,11 @@ install_packages_for_user <-
         is.logical(dry.run), length(dry.run) == 1L, !anyNA(dry.run),
         is.logical(verbose), length(verbose) == 1L, !anyNA(verbose)
     )
+
+    if (missing(packages)) {
+        old_packages <- old.packages(lib_paths, repos)
+        packages <- as.character(rownames(old_packages))
+    }
 
     ## find packages for installation
     available <- .package_available(lib_paths, repos)
@@ -104,20 +108,25 @@ install_packages_for_user <-
     depend <- .package_dependencies(packages, repos)
     verbose &&
         .message(
-            length(packages), " packages have ", nrow(depend), " dependencies"
+            length(packages), " packages have ",
+            length(unique(depend$Needs)), " dependencies"
         )
 
     need <- .package_need(available, depend)
 
     in_use <- need %>% filter(.$in_use, .$installed)
-    if (nrow(in_use))
+    if (nrow(in_use)) {
+        pkgs <- paste(unique(in_use$Package), collapse = " ")
         warning(
             "out-of-date dependencies are in use and may fail to update:\n",
-            "  ", paste0(unique(in_use$Package), collapse = " "),
+            paste(strwrap(pkgs, indent = 4, exdent = 4), collapse = "\n"),
             call. = FALSE, immediate. = TRUE
         )
+    }
 
     archive_need <- archive_need(need)
+    need <- need %>%
+        mutate(archived = !.$Package %in% archive_need$Package)
     verbose &&
         .message(
             nrow(archive_need), " dependencies need archive installation\n",
