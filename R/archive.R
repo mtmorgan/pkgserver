@@ -30,6 +30,14 @@
 ##
 #' @importFrom rappdirs user_cache_dir
 
+.directory_cache_dir <-
+    function()
+{
+    cache_dir <- user_cache_dir("pkgserver")
+    cache_dir <- getOption("PKGSERVER_CACHE_DIR", cache_dir)
+    Sys.getenv("PKGSERVER_CACHE_DIR", cache_dir)
+}
+
 .directory_create <-
     function(path, directory)
 {
@@ -42,7 +50,7 @@
 .directory_create_global <-
     function(directory)
 {
-    cache_dir <- user_cache_dir("pkgserver")
+    cache_dir <- .directory_cache_dir()
     path <- file.path(cache_dir, directory)
     .directory_create(path, directory)
 }
@@ -50,7 +58,7 @@
 .directory_create_version_specific <-
     function(directory, platform, bioc_version)
 {
-    cache_dir <- user_cache_dir("pkgserver")
+    cache_dir <- .directory_cache_dir()
     platform_dir <- digest(paste(platform, bioc_version, sep="-"))
     path <- file.path(cache_dir, directory, platform_dir)
     .directory_create(path, directory)
