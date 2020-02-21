@@ -5,10 +5,11 @@
 \title{Install packages and their dependencies from CRAN-style repositories.}
 \usage{
 install(
-  packages,
+  packages = character(),
   lib_paths = .libPaths(),
   repos = repositories(),
-  dry.run = FALSE
+  dry.run = FALSE,
+  verbose = TRUE
 )
 }
 \arguments{
@@ -26,8 +27,11 @@ least 1.}
 Bioconductor repositories relevant to the current R
 installation.}
 
-\item{dry.run}{logical(1) perform the installation (default,
+\item{dry.run}{logical(1) perform the installation (default
 \code{TRUE}) or only the calculation of packages requiring update.}
+
+\item{verbose}{logical(1) report progress toward installing
+packages (default TRUE).}
 }
 \value{
 a tibble of package, version, dependency count (including
