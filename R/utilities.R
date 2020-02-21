@@ -6,3 +6,10 @@ globalVariables(".")
     message(...)
     TRUE
 }
+
+.warning <-
+    function(...)
+{
+    warning(..., call. = FALSE)
+    TRUE
+}
