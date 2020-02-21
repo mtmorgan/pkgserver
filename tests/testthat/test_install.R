@@ -18,7 +18,7 @@ test_that(".package_available() works", {
     )
     expect_identical(select(object, colnames(available)), available)
     expect_identical(object$installed, logical(3))
-    expect_identical(object$update_available, !logical(3))
+    expect_identical(object$needs_update, !logical(3))
 
     ## installed package current
     installed <- cbind(Package = "B", Version = "1.2")
@@ -29,7 +29,7 @@ test_that(".package_available() works", {
     )
     expect_identical(select(object, colnames(available)), available)
     expect_identical(object$installed, c(FALSE, TRUE, FALSE))
-    expect_identical(object$update_available, c(TRUE, FALSE, TRUE))
+    expect_identical(object$needs_update, c(TRUE, FALSE, TRUE))
 
     ## installed package out-of-date
     installed <- cbind(Package = "B", Version = "1.0")
@@ -40,7 +40,7 @@ test_that(".package_available() works", {
     )
     expect_identical(select(object, colnames(available)), available)
     expect_identical(object$installed, c(FALSE, TRUE, FALSE))
-    expect_identical(object$update_available, !logical(3))
+    expect_identical(object$needs_update, !logical(3))
 
 })
 

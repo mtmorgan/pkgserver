@@ -21,7 +21,9 @@
         mutate(
             installed = .$Package %in% installed_packages$Package,
             in_use = .$Package %in% loadedNamespaces(),
-            needs_update = ifelse(is.na(update_available), TRUE, update_available)
+            needs_update = ifelse(
+                is.na(update_available), TRUE, update_available
+            )
         )
 }
 
@@ -57,8 +59,13 @@
 .install_packages <-
     function(need, lib_paths, repos)
 {
-    tbl <- need %>% select("Package", "Version")
-    archive <- archive_install(tbl, repos = repos)
+    tbl <-
+        need %>%
+        select("Package", "Version")
+    archive <-
+        archive_install(tbl, repos = repos) %>%
+        mutate(is_archived = .archive_is_package_archived(.)) %>%
+        filter(.$is_archived)
     packages <- archive$archive
     install.packages(packages, lib_paths[1], repos = NULL)
 
@@ -73,8 +80,35 @@ install_packages_for_builder <-
     stop("not implemented")
 }
 
-#' @importFrom dplyr count arrange desc
-install_packages_for_user <-
+
+#' Install packages and their dependencies from CRAN-style repositories.
+#'
+#' @param packages character() vector of packages to install. Packages
+#'     and all dependencies must be available in the repositories
+#'     specified by `repos = `.
+#'
+#' @param lib_paths character() vector of (local) directory paths in
+#'     which to install packages (the first position) and to find
+#'     currently installed packages. `lib_paths` must have length at
+#'     least 1.
+#'
+#' @param repos character() vector of paths (e.g., URLs) to
+#'     'CRAN-style' repositories. The default includes CRAN and
+#'     Bioconductor repositories relevant to the current R
+#'     installation.
+#'
+#' @param dry.run logical(1) perform the installation (default
+#'     `TRUE`) or only the calculation of packages requiring update.
+#'
+#' @param verbose logical(1) report progress toward installing
+#'     packages (default TRUE).
+#'
+#' @return a tibble of package, version, dependency count (including
+#'     self), and logical value indicating whether installation
+#'     occurred.
+#'
+#' @export
+install <-
     function(packages = character(), lib_paths = .libPaths(),
              repos = repositories(), dry.run = FALSE, verbose = TRUE)
 {
@@ -141,31 +175,3 @@ install_packages_for_user <-
 
 }
 
-#' Install packages and their dependencies from CRAN-style repositories.
-#'
-#' @param packages character() vector of packages to install. Packages
-#'     and all dependencies must be available in the repositories
-#'     specified by `repos = `.
-#'
-#' @param lib_paths character() vector of (local) directory paths in
-#'     which to install packages (the first position) and to find
-#'     currently installed packages. `lib_paths` must have length at
-#'     least 1.
-#'
-#' @param repos character() vector of paths (e.g., URLs) to
-#'     'CRAN-style' repositories. The default includes CRAN and
-#'     Bioconductor repositories relevant to the current R
-#'     installation.
-#'
-#' @param dry.run logical(1) perform the installation (default
-#'     `TRUE`) or only the calculation of packages requiring update.
-#'
-#' @param verbose logical(1) report progress toward installing
-#'     packages (default TRUE).
-#'
-#' @return a tibble of package, version, dependency count (including
-#'     self), and logical value indicating whether installation
-#'     occurred.
-#'
-#' @export
-install <- install_packages_for_user
