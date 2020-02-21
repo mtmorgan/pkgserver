@@ -270,7 +270,7 @@ archive_need <-
         mutate(digest = .digest(., platform, bioc_version)) %>%
         mutate(is_archived = .archive_is_package_archived(.)) %>%
         filter(!.$is_archived) %>%
-        select(-.$is_archived)
+        select(-"is_archived")
 }
 
 #' @rdname archive
@@ -347,7 +347,7 @@ archive_update <-
         filter(.$installed, .$needs_update)
 
     archive_install(tbl, platform, bioc_version, repos, verbose = verbose) %>%
-        select(.$Package, .$Version, .$digest) %>%
+        select("Package", "Version", "digest") %>%
         mutate(is_archived = .archive_is_package_archived(.))
 }
 
@@ -455,5 +455,5 @@ archive_add <-
     tbl1 <- .archive_add_compressed(tbl, platform, bioc_version, force)
 
     left_join(tbl, bind_rows(tbl0, tbl1), by = "source") %>%
-        select(.$Package, .$Version, .$digest, .$source, .$is_archived)
+        select("Package", "Version", "digest", "source", "is_archived")
 }
