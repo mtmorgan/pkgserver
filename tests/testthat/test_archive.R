@@ -161,31 +161,52 @@ test_that(".archive_is_package_archived() works", {
 
 test_that(".archive_move_binary_to_archive() works", {
 
+    skip_if_not(interactive()) # can't get mock to find non-exported functions
+
     platform <- R.version$platform
     bioc_version <- "3.11"
 
     ## 0 packages
     tbl0 <-
-        tibble(Package = character(), Version = character()) %>%
+        tibble(
+            source = character(), Package = character(), Version = character()
+        ) %>%
         mutate(digest = .digest(., platform, bioc_version))
     binary <- tempfile(); dir.create(binary)
     fls <- file.path(binary, sprintf("%s_%s.tar.gz", tbl0$Package, tbl0$Version))
     status <- file.create(fls)
     archive <- tempfile(); status <- dir.create(archive)
-    tbl <- .archive_move_binary_to_archive(tbl0, binary, archive)
+    with_mock(
+        .archive_package_version_from_binary = function(...) {
+            select(tbl0, Package, Version)
+        },
+        tbl <- .archive_move_binary_to_archive(tbl0, binary, archive)
+    )
     expect_true(setequal(dir(archive), tbl0$digest))
     expect_true(all(tbl$is_archived))
 
     ## 2 packages
-    tbl2 <-
-        tibble(Package = c("A", "C"), Version = c("1.1", "1.3")) %>%
-        mutate(digest = .digest(., platform, bioc_version))
     binary <- tempfile(); dir.create(binary)
-    fls <- file.path(binary, sprintf("%s_%s.tar.gz", tbl2$Package, tbl2$Version))
-    status <- file.create(fls)
+    source <- file.path(
+        binary,
+        sprintf("%s_%s.tar.gz", tbl2$Package, tbl2$Version)
+    )
+    status <- file.create(source)
+    tbl2 <-
+        tibble(
+            source = source,
+            Package = c("A", "C"), Version = c("1.1", "1.3")
+        ) %>%
+        mutate(digest = .digest(., platform, bioc_version))
     archive <- tempfile(); status <- dir.create(archive)
-    tbl <- .archive_move_binary_to_archive(tbl2, binary, archive)
-    expect_true(setequal(dir(archive), tbl2$digest))
+    with_mock(
+        .archive_package_version_from_binary = function(...) {
+            select(tbl2, Package, Version)
+        },
+        file.rename = function(from, ...) !logical(length(from)),
+        .archive_is_package_archived = function(tbl, ...) !logical(nrow(tbl)),
+        tbl <- .archive_move_binary_to_archive(tbl2, binary, archive)
+    )
     expect_true(all(tbl$is_archived))
 
 })
